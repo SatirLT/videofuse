@@ -216,16 +216,46 @@ function workerRun($jobId) {
         $creativeMime = mime_content_type($file1Path) ?: '';
         $creativeIsImage = strpos($creativeMime, 'image/') === 0;
 
-        // Resolution
-        if ($job['format'] === 'original') {
-            if ($creativeIsImage) {
-                $imgSz = @getimagesize($file1Path);
-                $w = $imgSz ? $imgSz[0] : 1080;
-                $h = $imgSz ? $imgSz[1] : 1920;
+        // ── IMAGE MODE — uniqualize and output as image ──
+        if ($creativeIsImage) {
+            $ext = strtolower(pathinfo($job['original_name'], PATHINFO_EXTENSION)) ?: 'jpg';
+            $baseName = pathinfo($job['original_name'], PATHINFO_FILENAME);
+            $outputFile = OUTPUT_DIR . $baseName . '_unique_' . substr(md5(uniqid()), 0, 6) . '.' . $ext;
+
+            if ($job['uniqualize']) {
+                $vf = implode(',', [
+                    'hue=h=' . rand(-2, 2) . ':s=' . (1 + rand(-3, 3) / 100),
+                    'eq=brightness=' . (rand(-2, 2) / 100) . ':contrast=' . (1 + rand(-2, 2) / 100),
+                    'noise=alls=' . rand(1, 2) . ':allf=t',
+                ]);
+                $cmd = sprintf('%s -i %s -vf "%s" -map_metadata -1 -q:v 2 -y %s 2>&1',
+                    FFMPEG_BIN, escapeshellarg($file1Path), $vf, escapeshellarg($outputFile));
             } else {
-                $probe = getVideoInfo($file1Path);
-                $w = $probe['w'] ?: 1080; $h = $probe['h'] ?: 1920;
+                $cmd = sprintf('%s -i %s -map_metadata -1 -q:v 2 -y %s 2>&1',
+                    FFMPEG_BIN, escapeshellarg($file1Path), escapeshellarg($outputFile));
             }
+
+            $out = shell_exec($cmd);
+            if (!file_exists($outputFile) || filesize($outputFile) < 100) {
+                throw new Exception("Image FFmpeg error:\n" . substr($out, -300));
+            }
+
+            $job['status'] = 'done';
+            $job['output_file'] = basename($outputFile);
+            $job['output_size'] = filesize($outputFile);
+            $job['output_duration'] = null;
+            $job['resolution'] = null;
+            $job['finished_at'] = time();
+
+            if (file_exists($job['creative_path'])) @unlink($job['creative_path']);
+            file_put_contents($jobFile, json_encode($job, JSON_UNESCAPED_UNICODE));
+            return;
+        }
+
+        // Resolution (video only)
+        if ($job['format'] === 'original') {
+            $probe = getVideoInfo($file1Path);
+            $w = $probe['w'] ?: 1080; $h = $probe['h'] ?: 1920;
             $w = $w % 2 === 0 ? $w : $w + 1;
             $h = $h % 2 === 0 ? $h : $h + 1;
         } else {
@@ -235,18 +265,6 @@ function workerRun($jobId) {
 
         $uid = uniqid('w_', true);
         $baseName = pathinfo($job['original_name'], PATHINFO_FILENAME);
-
-        // Convert image creative to video first
-        if ($creativeIsImage) {
-            $imgVideo = UPLOAD_DIR . $uid . '_creative_img.mp4';
-            $tempFiles[] = $imgVideo;
-            $converted = processImageEndcard($file1Path, $imgVideo, $w, $h,
-                $job['endcard_duration'] ?? 5, $job['endcard_animation'] ?? 'zoom', $q, $uid, $tempFiles);
-            $file1Path = $converted;
-            if (!file_exists($file1Path) || filesize($file1Path) < 500) {
-                throw new Exception('Image to video conversion failed');
-            }
-        }
 
         // ── SOLO MODE ──
         if ($job['mode'] === 'solo') {

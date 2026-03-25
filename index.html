@@ -263,27 +263,6 @@
 
     <div class="file-list" id="fileList"></div>
 
-    <!-- Image animation settings (shown when images are added) -->
-    <div class="img-settings" id="imgSettings">
-      <div class="is-label">🖼 Настройки для картинок</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="s-card">
-          <label>Длительность (сек)</label>
-          <input type="number" id="imgDurationSolo" value="5" min="1" max="30" step="0.5">
-        </div>
-        <div class="s-card">
-          <label>Анимация</label>
-          <select id="imgAnimationSolo">
-            <option value="zoom">Zoom In</option>
-            <option value="pulse">Пульсация</option>
-            <option value="fade">Fade</option>
-            <option value="slide">Slide</option>
-            <option value="none">Нет</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
     <!-- Endcard (for merge mode) -->
     <div class="endcard-zone" id="endcardZone">
       <div class="endcard-box">
@@ -409,9 +388,6 @@ function isImageFile(f) {
 
 function renderFileList() {
   const el = document.getElementById('fileList');
-  const hasImages = creativeFiles.some(isImageFile);
-  document.getElementById('imgSettings').classList.toggle('visible', hasImages);
-
   if (!creativeFiles.length) {
     el.innerHTML='';
     document.getElementById('dropTitle').textContent='Перетащите файлы сюда';
@@ -459,11 +435,8 @@ async function submitJobs() {
     fd.append('format', document.getElementById('selFormat').value);
     fd.append('quality', document.getElementById('selQuality').value);
     fd.append('uniqualize', document.getElementById('chkUnique').checked ? '1' : '');
-    // Use solo image settings if in solo mode, endcard settings in merge mode
-    const dur  = currentMode === 'merge' ? document.getElementById('imgDuration').value      : document.getElementById('imgDurationSolo').value;
-    const anim = currentMode === 'merge' ? document.getElementById('imgAnimation').value     : document.getElementById('imgAnimationSolo').value;
-    fd.append('endcard_duration', dur);
-    fd.append('endcard_animation', anim);
+    fd.append('endcard_duration', document.getElementById('imgDuration').value);
+    fd.append('endcard_animation', document.getElementById('imgAnimation').value);
 
     creativeFiles.forEach(f => fd.append('files[]', f));
     if (currentMode === 'merge' && endcardFile) {
