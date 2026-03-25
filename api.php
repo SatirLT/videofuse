@@ -42,6 +42,7 @@ switch ($action) {
     case 'delete':      handleDelete(); break;       // Delete file(s)
     case 'download_all':handleDownloadAll(); break;  // Download all as ZIP
     case 'cleanup':     handleCleanup(); break;
+    case 'clear_queue': handleClearQueue(); break;
     default:            jsonOut(['error' => 'Unknown action'], 400);
 }
 
@@ -544,6 +545,22 @@ function getVideoInfo($path) {
 
 function sanitizeName($name) {
     return preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($name));
+}
+
+function handleClearQueue() {
+    $cleared = 0;
+    foreach (glob(JOBS_DIR . 'job_*.json') as $f) {
+        $j = json_decode(file_get_contents($f), true);
+        if ($j && in_array($j['status'], ['queued', 'processing'])) {
+            // Clean up uploaded source file if it exists
+            if (!empty($j['creative_path']) && file_exists($j['creative_path'])) {
+                @unlink($j['creative_path']);
+            }
+            @unlink($f);
+            $cleared++;
+        }
+    }
+    jsonOut(['ok' => true, 'cleared' => $cleared]);
 }
 
 function handleCleanup() {
