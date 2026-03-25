@@ -43,6 +43,7 @@ switch ($action) {
     case 'download_all':handleDownloadAll(); break;  // Download all as ZIP
     case 'cleanup':     handleCleanup(); break;
     case 'clear_queue': handleClearQueue(); break;
+    case 'server_stats':handleServerStats(); break;
     default:            jsonOut(['error' => 'Unknown action'], 400);
 }
 
@@ -211,10 +212,20 @@ function workerRun($jobId) {
 
         if (!file_exists($file1Path)) throw new Exception('Creative file missing');
 
+        // Detect if creative is an image
+        $creativeMime = mime_content_type($file1Path) ?: '';
+        $creativeIsImage = strpos($creativeMime, 'image/') === 0;
+
         // Resolution
         if ($job['format'] === 'original') {
-            $probe = getVideoInfo($file1Path);
-            $w = $probe['w'] ?: 1080; $h = $probe['h'] ?: 1920;
+            if ($creativeIsImage) {
+                $imgSz = @getimagesize($file1Path);
+                $w = $imgSz ? $imgSz[0] : 1080;
+                $h = $imgSz ? $imgSz[1] : 1920;
+            } else {
+                $probe = getVideoInfo($file1Path);
+                $w = $probe['w'] ?: 1080; $h = $probe['h'] ?: 1920;
+            }
             $w = $w % 2 === 0 ? $w : $w + 1;
             $h = $h % 2 === 0 ? $h : $h + 1;
         } else {
@@ -224,6 +235,18 @@ function workerRun($jobId) {
 
         $uid = uniqid('w_', true);
         $baseName = pathinfo($job['original_name'], PATHINFO_FILENAME);
+
+        // Convert image creative to video first
+        if ($creativeIsImage) {
+            $imgVideo = UPLOAD_DIR . $uid . '_creative_img.mp4';
+            $tempFiles[] = $imgVideo;
+            $converted = processImageEndcard($file1Path, $imgVideo, $w, $h,
+                $job['endcard_duration'] ?? 5, $job['endcard_animation'] ?? 'zoom', $q, $uid, $tempFiles);
+            $file1Path = $converted;
+            if (!file_exists($file1Path) || filesize($file1Path) < 500) {
+                throw new Exception('Image to video conversion failed');
+            }
+        }
 
         // ── SOLO MODE ──
         if ($job['mode'] === 'solo') {
@@ -553,6 +576,47 @@ function getVideoInfo($path) {
 
 function sanitizeName($name) {
     return preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($name));
+}
+
+function handleServerStats() {
+    $load = sys_getloadavg();
+
+    // RAM from /proc/meminfo
+    $memTotal = 0; $memAvail = 0;
+    if (file_exists('/proc/meminfo')) {
+        foreach (file('/proc/meminfo') as $line) {
+            if (preg_match('/^MemTotal:\s+(\d+)/', $line, $m))     $memTotal = (int)$m[1];
+            if (preg_match('/^MemAvailable:\s+(\d+)/', $line, $m)) $memAvail = (int)$m[1];
+        }
+    }
+    $memUsedPct  = $memTotal ? round(($memTotal - $memAvail) / $memTotal * 100) : 0;
+    $memUsedGb   = round(($memTotal - $memAvail) / 1024 / 1024, 1);
+    $memTotalGb  = round($memTotal / 1024 / 1024, 1);
+
+    // Disk
+    $diskFree    = disk_free_space(OUTPUT_DIR) ?: 0;
+    $diskTotal   = disk_total_space(OUTPUT_DIR) ?: 0;
+    $diskUsedPct = $diskTotal ? round(($diskTotal - $diskFree) / $diskTotal * 100) : 0;
+    $diskFreeGb  = round($diskFree / 1024 / 1024 / 1024, 1);
+
+    // Active workers
+    $activeJobs = 0;
+    foreach (glob(JOBS_DIR . 'job_*.json') ?: [] as $f) {
+        $j = json_decode(file_get_contents($f), true);
+        if ($j && $j['status'] === 'processing') $activeJobs++;
+    }
+
+    jsonOut([
+        'ok'           => true,
+        'load1'        => round($load[0], 2),
+        'load5'        => round($load[1], 2),
+        'mem_used_pct' => $memUsedPct,
+        'mem_used_gb'  => $memUsedGb,
+        'mem_total_gb' => $memTotalGb,
+        'disk_used_pct'=> $diskUsedPct,
+        'disk_free_gb' => $diskFreeGb,
+        'active_jobs'  => $activeJobs,
+    ]);
 }
 
 function handleClearQueue() {

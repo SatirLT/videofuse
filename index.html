@@ -159,6 +159,22 @@
     .ec-settings{grid-template-columns:1fr}
   }
 
+  /* Server stats bar */
+  .srv-bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:14px;animation:rise .6s ease-out .07s both}
+  .srv-stat{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:10px}
+  .srv-stat .srv-label{color:var(--text3)}
+  .srv-stat .srv-val{color:var(--text);font-weight:600}
+  .srv-bar-mini{width:36px;height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+  .srv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+  .srv-bar-fill.ok{background:var(--green)}
+  .srv-bar-fill.warn{background:var(--yellow)}
+  .srv-bar-fill.crit{background:var(--red)}
+
+  /* Image settings (shown when images are in creative list) */
+  .img-settings{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px;display:none}
+  .img-settings.visible{display:block}
+  .img-settings .is-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:8px}
+
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
   ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
@@ -183,6 +199,14 @@
       <span class="status-dot"></span>
       <span id="statusText">Проверка...</span>
     </span>
+  </div>
+
+  <!-- Server stats -->
+  <div class="srv-bar" id="srvBar">
+    <div class="srv-stat"><span class="srv-label">CPU</span><div class="srv-bar-mini"><div class="srv-bar-fill ok" id="srvCpuBar" style="width:0%"></div></div><span class="srv-val" id="srvCpu">—</span></div>
+    <div class="srv-stat"><span class="srv-label">RAM</span><div class="srv-bar-mini"><div class="srv-bar-fill ok" id="srvRamBar" style="width:0%"></div></div><span class="srv-val" id="srvRam">—</span></div>
+    <div class="srv-stat"><span class="srv-label">Диск</span><div class="srv-bar-mini"><div class="srv-bar-fill ok" id="srvDiskBar" style="width:0%"></div></div><span class="srv-val" id="srvDisk">—</span></div>
+    <div class="srv-stat"><span class="srv-label">Задачи</span><span class="srv-val" id="srvJobs">—</span></div>
   </div>
 
   <!-- Main tabs -->
@@ -232,12 +256,33 @@
     <!-- Drop zone for creatives -->
     <div class="drop-area" id="dropArea" onclick="document.getElementById('inpFiles').click()">
       <div class="drop-icon">📂</div>
-      <div class="drop-title" id="dropTitle">Перетащите видео сюда</div>
-      <div class="drop-sub">Можно добавить сразу несколько файлов · mp4, mov, webm</div>
-      <input type="file" id="inpFiles" accept="video/*" multiple>
+      <div class="drop-title" id="dropTitle">Перетащите файлы сюда</div>
+      <div class="drop-sub">Видео и картинки · mp4, mov, webm, jpg, png, webp</div>
+      <input type="file" id="inpFiles" accept="video/*,image/jpeg,image/png,image/webp,image/gif" multiple>
     </div>
 
     <div class="file-list" id="fileList"></div>
+
+    <!-- Image animation settings (shown when images are added) -->
+    <div class="img-settings" id="imgSettings">
+      <div class="is-label">🖼 Настройки для картинок</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="s-card">
+          <label>Длительность (сек)</label>
+          <input type="number" id="imgDurationSolo" value="5" min="1" max="30" step="0.5">
+        </div>
+        <div class="s-card">
+          <label>Анимация</label>
+          <select id="imgAnimationSolo">
+            <option value="zoom">Zoom In</option>
+            <option value="pulse">Пульсация</option>
+            <option value="fade">Fade</option>
+            <option value="slide">Slide</option>
+            <option value="none">Нет</option>
+          </select>
+        </div>
+      </div>
+    </div>
 
     <!-- Endcard (for merge mode) -->
     <div class="endcard-zone" id="endcardZone">
@@ -358,18 +403,30 @@ function removeFile(idx) {
   updateSubmitBtn();
 }
 
+function isImageFile(f) {
+  return f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name);
+}
+
 function renderFileList() {
   const el = document.getElementById('fileList');
-  if (!creativeFiles.length) { el.innerHTML=''; document.getElementById('dropTitle').textContent='Перетащите видео сюда'; return; }
-  document.getElementById('dropTitle').textContent = 'Добавить ещё файлы (' + creativeFiles.length + ' добавлено)';
-  el.innerHTML = creativeFiles.map((f,i) =>
-    '<div class="file-item">'+
-      '<span class="fi-icon">🎬</span>'+
+  const hasImages = creativeFiles.some(isImageFile);
+  document.getElementById('imgSettings').classList.toggle('visible', hasImages);
+
+  if (!creativeFiles.length) {
+    el.innerHTML='';
+    document.getElementById('dropTitle').textContent='Перетащите файлы сюда';
+    return;
+  }
+  document.getElementById('dropTitle').textContent = 'Добавить ещё (' + creativeFiles.length + ' добавлено)';
+  el.innerHTML = creativeFiles.map((f,i) => {
+    const icon = isImageFile(f) ? '🖼' : '🎬';
+    return '<div class="file-item">'+
+      '<span class="fi-icon">'+icon+'</span>'+
       '<span class="fi-name">'+f.name+'</span>'+
       '<span class="fi-size">'+(f.size/1024/1024).toFixed(1)+' MB</span>'+
       '<button class="fi-remove" onclick="removeFile('+i+')">✕</button>'+
-    '</div>'
-  ).join('');
+    '</div>';
+  }).join('');
 }
 
 // ─── Endcard ───
@@ -402,8 +459,11 @@ async function submitJobs() {
     fd.append('format', document.getElementById('selFormat').value);
     fd.append('quality', document.getElementById('selQuality').value);
     fd.append('uniqualize', document.getElementById('chkUnique').checked ? '1' : '');
-    fd.append('endcard_duration', document.getElementById('imgDuration').value);
-    fd.append('endcard_animation', document.getElementById('imgAnimation').value);
+    // Use solo image settings if in solo mode, endcard settings in merge mode
+    const dur  = currentMode === 'merge' ? document.getElementById('imgDuration').value      : document.getElementById('imgDurationSolo').value;
+    const anim = currentMode === 'merge' ? document.getElementById('imgAnimation').value     : document.getElementById('imgAnimationSolo').value;
+    fd.append('endcard_duration', dur);
+    fd.append('endcard_animation', anim);
 
     creativeFiles.forEach(f => fd.append('files[]', f));
     if (currentMode === 'merge' && endcardFile) {
@@ -587,9 +647,37 @@ function downloadAllFiles() {
   window.location.href = API + '?action=download_all';
 }
 
+// ─── Server stats ───
+async function loadServerStats() {
+  try {
+    const r = await fetch(API + '?action=server_stats');
+    const d = await r.json();
+    if (!d.ok) return;
+
+    function barClass(pct) { return pct >= 85 ? 'crit' : pct >= 60 ? 'warn' : 'ok'; }
+
+    const cpuPct = Math.min(100, Math.round(d.load1 * 100));
+    document.getElementById('srvCpu').textContent    = d.load1;
+    document.getElementById('srvCpuBar').style.width = cpuPct + '%';
+    document.getElementById('srvCpuBar').className   = 'srv-bar-fill ' + barClass(cpuPct);
+
+    document.getElementById('srvRam').textContent    = d.mem_used_gb + '/' + d.mem_total_gb + ' GB';
+    document.getElementById('srvRamBar').style.width = d.mem_used_pct + '%';
+    document.getElementById('srvRamBar').className   = 'srv-bar-fill ' + barClass(d.mem_used_pct);
+
+    document.getElementById('srvDisk').textContent    = d.disk_free_gb + ' GB свободно';
+    document.getElementById('srvDiskBar').style.width = d.disk_used_pct + '%';
+    document.getElementById('srvDiskBar').className   = 'srv-bar-fill ' + barClass(d.disk_used_pct);
+
+    document.getElementById('srvJobs').textContent = d.active_jobs > 0 ? d.active_jobs + ' активно' : 'нет';
+  } catch(e) {}
+}
+
 // ─── Init ───
 checkServer();
 loadFileCount();
+loadServerStats();
+setInterval(loadServerStats, 5000);
 // Auto-poll if there are active jobs
 setTimeout(async () => {
   try {
