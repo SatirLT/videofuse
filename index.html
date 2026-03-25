@@ -522,8 +522,11 @@ function renderQueue(jobs) {
 
   el.innerHTML = jobs.map(j => {
     const icon = {queued:'🕐', processing:'⏳', done:'✅', error:'❌'}[j.status];
+    const md5badge = (j.uniqualized && j.output_md5)
+      ? ' · <span style="font-family:\'JetBrains Mono\',monospace;color:var(--green);font-size:10px" title="MD5 хеш — каждый раз разный, значит файл уникален">✓ '+j.output_md5+'</span>'
+      : '';
     const meta = j.status==='done'
-      ? (j.resolution||'')+' · '+(j.output_size_mb||'?')+' MB · '+(j.output_duration||'?')+'s · '+(j.elapsed||'?')+'s'
+      ? (j.resolution ? j.resolution+' · ' : '')+(j.output_size_mb||'?')+' MB'+(j.output_duration ? ' · '+j.output_duration+'s' : '')+' · '+(j.elapsed||'?')+'s'+md5badge
       : j.status==='processing' ? 'Обработка...'
       : j.status==='error' ? ''
       : 'В очереди';

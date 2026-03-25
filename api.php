@@ -245,6 +245,7 @@ function workerRun($jobId) {
             $job['output_size'] = filesize($outputFile);
             $job['output_duration'] = null;
             $job['resolution'] = null;
+            $job['output_md5'] = substr(md5_file($outputFile), 0, 12);
             $job['finished_at'] = time();
 
             if (file_exists($job['creative_path'])) @unlink($job['creative_path']);
@@ -349,6 +350,7 @@ function workerRun($jobId) {
         $job['output_size'] = filesize($outputFile);
         $job['output_duration'] = round((float)$duration, 1);
         $job['resolution'] = "{$w}x{$h}";
+        $job['output_md5'] = substr(md5_file($outputFile), 0, 12);
         $job['finished_at'] = time();
 
     } catch (Exception $e) {
@@ -467,6 +469,7 @@ function formatJobForClient($j) {
         'output_size'   => $j['output_size'],
         'output_size_mb'=> $j['output_size'] ? round($j['output_size']/1024/1024, 1) : null,
         'output_duration'=> $j['output_duration'],
+        'output_md5'    => $j['output_md5'] ?? null,
         'resolution'    => $j['resolution'] ?? null,
         'error'         => $j['error'],
         'created_at'    => $j['created_at'],
