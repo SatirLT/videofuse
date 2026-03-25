@@ -328,10 +328,18 @@ function workerRun($jobId) {
 // WORKER LAUNCHER
 // ═══════════════════════════════════════════════════════════════
 function launchWorker($jobId) {
-    $phpBin = PHP_BINARY ?: (PHP_OS_FAMILY === 'Windows' ? 'php' : '/usr/bin/php');
-    $script  = escapeshellarg(__FILE__);
-    $jid     = escapeshellarg($jobId);
-    // Try nohup first; fall back to plain background exec
+    // PHP_BINARY in FPM/web context points to the FPM binary, not CLI.
+    // Find the actual CLI binary instead.
+    if (php_sapi_name() === 'cli') {
+        $phpBin = PHP_BINARY;
+    } else {
+        $phpBin = trim(shell_exec('which php 2>/dev/null'))
+               ?: trim(shell_exec('which php8.4 2>/dev/null'))
+               ?: trim(shell_exec('which php8.3 2>/dev/null'))
+               ?: '/usr/bin/php';
+    }
+    $script = escapeshellarg(__FILE__);
+    $jid    = escapeshellarg($jobId);
     if (PHP_OS_FAMILY !== 'Windows' && shell_exec('which nohup 2>/dev/null')) {
         @exec("nohup {$phpBin} {$script} worker {$jid} > /dev/null 2>&1 &");
     } else {
