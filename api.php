@@ -160,10 +160,7 @@ function handleSubmit() {
             $jobs[] = ['id' => $jobId, 'name' => $creative['name']];
 
             // Launch background worker
-            $phpBin = PHP_BINARY ?: 'php';
-            $script = escapeshellarg(__FILE__);
-            $jid = escapeshellarg($jobId);
-            exec("nohup {$phpBin} {$script} worker {$jid} > /dev/null 2>&1 &");
+            launchWorker($jobId);
         }
 
         jsonOut([
@@ -326,6 +323,21 @@ function workerRun($jobId) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// WORKER LAUNCHER
+// ═══════════════════════════════════════════════════════════════
+function launchWorker($jobId) {
+    $phpBin = PHP_BINARY ?: (PHP_OS_FAMILY === 'Windows' ? 'php' : '/usr/bin/php');
+    $script  = escapeshellarg(__FILE__);
+    $jid     = escapeshellarg($jobId);
+    // Try nohup first; fall back to plain background exec
+    if (PHP_OS_FAMILY !== 'Windows' && shell_exec('which nohup 2>/dev/null')) {
+        @exec("nohup {$phpBin} {$script} worker {$jid} > /dev/null 2>&1 &");
+    } else {
+        @exec("{$phpBin} {$script} worker {$jid} > /dev/null 2>&1 &");
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // STATUS — poll all active jobs
 // ═══════════════════════════════════════════════════════════════
 function handleStatus() {
@@ -339,7 +351,10 @@ function handleStatus() {
         $files = array_slice($files, 0, 100);
         foreach ($files as $f) {
             $j = json_decode(file_get_contents($f), true);
-            if ($j) $jobs[] = formatJobForClient($j);
+            if ($j) {
+                $j = watchdogJob($j, $f);
+                $jobs[] = formatJobForClient($j);
+            }
         }
     } else {
         foreach ($jobIds as $id) {
@@ -347,12 +362,38 @@ function handleStatus() {
             $f = JOBS_DIR . $id . '.json';
             if (file_exists($f)) {
                 $j = json_decode(file_get_contents($f), true);
-                if ($j) $jobs[] = formatJobForClient($j);
+                if ($j) {
+                    $j = watchdogJob($j, $f);
+                    $jobs[] = formatJobForClient($j);
+                }
             }
         }
     }
 
     jsonOut(['ok' => true, 'jobs' => $jobs]);
+}
+
+/**
+ * Watchdog: re-launch workers for stuck queued jobs,
+ * and fail jobs stuck in processing for too long.
+ */
+function watchdogJob($job, $jobFile) {
+    $now = time();
+
+    // Job stuck in 'queued' for >20s → worker never started, re-launch
+    if ($job['status'] === 'queued' && ($now - $job['created_at']) > 20) {
+        launchWorker($job['id']);
+    }
+
+    // Job stuck in 'processing' for >30min → worker crashed, mark as error
+    if ($job['status'] === 'processing' && $job['started_at'] && ($now - $job['started_at']) > 1800) {
+        $job['status'] = 'error';
+        $job['error'] = 'Таймаут: обработка зависла (>30 мин)';
+        $job['finished_at'] = $now;
+        file_put_contents($jobFile, json_encode($job, JSON_UNESCAPED_UNICODE));
+    }
+
+    return $job;
 }
 
 function handleJobStatus() {
