@@ -4,6 +4,18 @@
  * PHP 7.4+, FFmpeg required
  */
 
+// Constants must be defined BEFORE the CLI worker check
+define('BASE_DIR',    __DIR__);
+define('UPLOAD_DIR',  __DIR__ . '/tmp_uploads/');
+define('OUTPUT_DIR',  __DIR__ . '/tmp_outputs/');
+define('JOBS_DIR',    __DIR__ . '/tmp_jobs/');
+define('FFMPEG_BIN',  'ffmpeg');
+define('FFPROBE_BIN', 'ffprobe');
+
+foreach ([UPLOAD_DIR, OUTPUT_DIR, JOBS_DIR] as $d) {
+    if (!is_dir($d)) @mkdir($d, 0775, true);
+}
+
 // Allow long-running for worker
 if (php_sapi_name() === 'cli') {
     set_time_limit(0);
@@ -17,17 +29,6 @@ if (php_sapi_name() === 'cli') {
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET');
-
-define('BASE_DIR',    __DIR__);
-define('UPLOAD_DIR',  __DIR__ . '/tmp_uploads/');
-define('OUTPUT_DIR',  __DIR__ . '/tmp_outputs/');
-define('JOBS_DIR',    __DIR__ . '/tmp_jobs/');
-define('FFMPEG_BIN',  'ffmpeg');
-define('FFPROBE_BIN', 'ffprobe');
-
-foreach ([UPLOAD_DIR, OUTPUT_DIR, JOBS_DIR] as $d) {
-    if (!is_dir($d)) @mkdir($d, 0775, true);
-}
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
