@@ -202,9 +202,9 @@ function workerRun($jobId) {
             '16:9' => ['w' => 1920, 'h' => 1080],
         ];
         $qualityMap = [
-            'high'   => ['crf' => '18', 'preset' => 'slow',   'ab' => '192k'],
-            'medium' => ['crf' => '23', 'preset' => 'medium', 'ab' => '128k'],
-            'low'    => ['crf' => '28', 'preset' => 'fast',   'ab' => '96k'],
+            'high'   => ['crf' => '18', 'preset' => 'fast',     'ab' => '192k'],
+            'medium' => ['crf' => '23', 'preset' => 'fast',     'ab' => '128k'],
+            'low'    => ['crf' => '28', 'preset' => 'veryfast', 'ab' => '96k'],
         ];
 
         $q = $qualityMap[$job['quality']] ?? $qualityMap['high'];
