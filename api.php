@@ -599,6 +599,10 @@ function sanitizeName($name) {
 function handleServerStats() {
     $load = sys_getloadavg();
 
+    // CPU count and usage %
+    $cpuCount = (int)trim(shell_exec('nproc 2>/dev/null') ?: '1') ?: 1;
+    $cpuPct   = min(100, (int)round($load[0] / $cpuCount * 100));
+
     // RAM from /proc/meminfo
     $memTotal = 0; $memAvail = 0;
     if (file_exists('/proc/meminfo')) {
@@ -626,8 +630,9 @@ function handleServerStats() {
 
     jsonOut([
         'ok'           => true,
+        'cpu_pct'      => $cpuPct,
+        'cpu_count'    => $cpuCount,
         'load1'        => round($load[0], 2),
-        'load5'        => round($load[1], 2),
         'mem_used_pct' => $memUsedPct,
         'mem_used_gb'  => $memUsedGb,
         'mem_total_gb' => $memTotalGb,

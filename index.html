@@ -629,10 +629,9 @@ async function loadServerStats() {
 
     function barClass(pct) { return pct >= 85 ? 'crit' : pct >= 60 ? 'warn' : 'ok'; }
 
-    const cpuPct = Math.min(100, Math.round(d.load1 * 100));
-    document.getElementById('srvCpu').textContent    = d.load1;
-    document.getElementById('srvCpuBar').style.width = cpuPct + '%';
-    document.getElementById('srvCpuBar').className   = 'srv-bar-fill ' + barClass(cpuPct);
+    document.getElementById('srvCpu').textContent    = d.cpu_pct + '%';
+    document.getElementById('srvCpuBar').style.width = d.cpu_pct + '%';
+    document.getElementById('srvCpuBar').className   = 'srv-bar-fill ' + barClass(d.cpu_pct);
 
     document.getElementById('srvRam').textContent    = d.mem_used_gb + '/' + d.mem_total_gb + ' GB';
     document.getElementById('srvRamBar').style.width = d.mem_used_pct + '%';
