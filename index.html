@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VideoFuse Pro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg:#08080c; --surface:#111118; --surface2:#181822; --border:#252530;
+    --text:#e4e2ec; --text2:#9896a8; --text3:#5f5d70;
+    --accent:#7b6ef6; --accent-dim:rgba(123,110,246,.12); --accent-glow:rgba(123,110,246,.25);
+    --pink:#e8628c; --pink-dim:rgba(232,98,140,.12);
+    --green:#34d399; --green-dim:rgba(52,211,153,.12); --green-glow:rgba(52,211,153,.2);
+    --red:#f87171; --red-dim:rgba(248,113,113,.1);
+    --orange:#fb923c; --orange-dim:rgba(251,163,60,.1);
+    --yellow:#fbbf24; --yellow-dim:rgba(251,191,36,.12);
+    --radius:14px; --radius-sm:8px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+  body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .glow-orb{position:fixed;border-radius:50%;pointer-events:none;filter:blur(120px);opacity:.06;z-index:0}
+  .glow-orb.a{width:600px;height:600px;background:var(--accent);top:-200px;left:-100px}
+  .glow-orb.b{width:500px;height:500px;background:var(--pink);bottom:-200px;right:-100px}
+
+  .app{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:24px 20px 80px}
+
+  /* Header */
+  .header{text-align:center;margin-bottom:28px;animation:rise .6s ease-out}
+  .header-badge{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);background:var(--accent-dim);padding:4px 13px;border-radius:20px;border:1px solid rgba(123,110,246,.15);margin-bottom:10px}
+  .header h1{font-size:clamp(26px,4.5vw,40px);font-weight:800;letter-spacing:-1.5px;background:linear-gradient(135deg,#fff 20%,#b4adff 60%,var(--pink) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .header p{color:var(--text2);font-size:14px;margin-top:4px}
+
+  /* Status */
+  #statusBar{text-align:center;margin-bottom:18px;animation:rise .6s ease-out .05s both}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 12px;border-radius:20px}
+  .status-pill.checking{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(123,110,246,.15)}
+  .status-pill.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(52,211,153,.15)}
+  .status-pill.fail{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,.15)}
+  .status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+  .status-pill.checking .status-dot{animation:blink 1s infinite}
+
+  /* Tabs */
+  .main-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:50px;padding:4px;animation:rise .6s ease-out .08s both}
+  .main-tab{flex:1;text-align:center;font-size:13px;font-weight:600;padding:10px 16px;border:none;border-radius:50px;background:transparent;color:var(--text2);cursor:pointer;transition:all .25s;font-family:'DM Sans',sans-serif}
+  .main-tab:hover{color:var(--text)}
+  .main-tab.active{background:var(--accent-dim);color:var(--accent)}
+  .tab-content{display:none}
+  .tab-content.active{display:block;animation:rise .4s ease-out}
+
+  /* ── TAB 1: Process ── */
+  .mode-row{display:flex;gap:6px;margin-bottom:16px}
+  .mode-btn{flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;text-align:center;transition:all .25s}
+  .mode-btn:hover{border-color:var(--accent);color:var(--text)}
+  .mode-btn.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+
+  .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px}
+  .s-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+  .s-card label{display:block;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:6px}
+  .s-card select,.s-card input[type="number"]{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:12px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer}
+  .s-card select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239896a8'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px}
+  .s-card select:focus,.s-card input:focus{border-color:var(--accent)}
+  select option{background:var(--surface2);color:var(--text)}
+
+  .toggle-row{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+  .toggle-track{width:36px;height:20px;border-radius:10px;background:var(--border);position:relative;transition:background .25s;flex-shrink:0}
+  .toggle-track::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:var(--text2);top:3px;left:3px;transition:all .25s}
+  .toggle-row input{display:none}
+  .toggle-row input:checked + .toggle-track{background:var(--accent)}
+  .toggle-row input:checked + .toggle-track::after{left:19px;background:#fff}
+
+  /* Drop zone */
+  .drop-area{border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer;transition:all .3s;background:var(--surface);margin-bottom:16px;position:relative}
+  .drop-area:hover,.drop-area.dragover{border-color:var(--accent);background:var(--surface2)}
+  .drop-area .drop-icon{font-size:32px;margin-bottom:8px}
+  .drop-area .drop-title{font-weight:600;font-size:15px;margin-bottom:4px}
+  .drop-area .drop-sub{font-size:12px;color:var(--text3)}
+
+  /* File list (before submit) */
+  .file-list{margin-bottom:16px}
+  .file-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;font-size:13px}
+  .file-item .fi-icon{font-size:18px;flex-shrink:0}
+  .file-item .fi-name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-item .fi-size{color:var(--text3);font-size:11px;font-family:'JetBrains Mono',monospace;flex-shrink:0}
+  .file-item .fi-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;transition:background .2s}
+  .file-item .fi-remove:hover{background:var(--red-dim)}
+
+  /* Endcard zone */
+  .endcard-zone{margin-bottom:16px;display:none}
+  .endcard-zone.visible{display:block}
+  .endcard-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+  .endcard-box .ez-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--pink);margin-bottom:8px}
+  .ec-settings{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;display:none}
+  .ec-settings.visible{display:grid}
+
+  /* Submit */
+  .submit-row{text-align:center;margin-bottom:8px}
+  .btn-submit{font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;padding:14px 48px;border:none;border-radius:50px;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--accent),#9b8bff,var(--pink));background-size:200% 200%;animation:gradShift 4s ease infinite;transition:all .35s;box-shadow:0 4px 20px var(--accent-glow)}
+  .btn-submit:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 36px var(--accent-glow)}
+  .btn-submit:disabled{opacity:.3;cursor:not-allowed;filter:grayscale(.4)}
+  @keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+  /* ── TAB 2: Queue ── */
+  .queue-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .queue-header h3{font-size:16px;font-weight:700}
+  .queue-stats{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+  .queue-empty{text-align:center;padding:40px;color:var(--text3);font-size:14px}
+
+  .job-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:border-color .3s}
+  .job-card.done{border-color:rgba(52,211,153,.3)}
+  .job-card.error{border-color:rgba(248,113,113,.3)}
+  .job-card.processing{border-color:rgba(123,110,246,.3)}
+
+  .job-status-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .job-card.queued .job-status-icon{background:var(--yellow-dim);color:var(--yellow)}
+  .job-card.processing .job-status-icon{background:var(--accent-dim);color:var(--accent);animation:blink 1s infinite}
+  .job-card.done .job-status-icon{background:var(--green-dim);color:var(--green)}
+  .job-card.error .job-status-icon{background:var(--red-dim);color:var(--red)}
+
+  .job-info{flex:1;min-width:0}
+  .job-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .job-meta{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px}
+  .job-error{font-size:11px;color:var(--red);margin-top:2px}
+
+  .job-actions{display:flex;gap:6px;flex-shrink:0}
+  .btn-sm{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:6px 14px;border:none;border-radius:20px;cursor:pointer;transition:all .2s}
+  .btn-sm.dl{background:var(--green-dim);color:var(--green)}
+  .btn-sm.dl:hover{background:rgba(52,211,153,.2)}
+  .btn-sm.del{background:var(--red-dim);color:var(--red)}
+  .btn-sm.del:hover{background:rgba(248,113,113,.2)}
+
+  /* ── TAB 3: Files ── */
+  .files-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+  .files-toolbar h3{font-size:16px;font-weight:700}
+  .files-toolbar-btns{display:flex;gap:6px}
+  .btn-tool{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:8px 16px;border:1px solid var(--border);border-radius:50px;background:var(--surface);color:var(--text2);cursor:pointer;transition:all .2s}
+  .btn-tool:hover{border-color:var(--accent);color:var(--text)}
+  .btn-tool.danger{color:var(--red);border-color:rgba(248,113,113,.2)}
+  .btn-tool.danger:hover{background:var(--red-dim)}
+
+  .file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .fcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;transition:border-color .2s}
+  .fcard:hover{border-color:var(--accent)}
+  .fcard-name{font-weight:600;font-size:13px;margin-bottom:6px;word-break:break-all}
+  .fcard-meta{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-bottom:10px}
+  .fcard-actions{display:flex;gap:6px}
+
+  .files-empty{text-align:center;padding:40px;color:var(--text3)}
+
+  /* Misc */
+  .count-badge{background:var(--accent-dim);color:var(--accent);font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px}
+
+  @media(max-width:600px){
+    .settings{grid-template-columns:1fr 1fr}
+    .file-grid{grid-template-columns:1fr}
+    .mode-row{flex-direction:column}
+    .ec-settings{grid-template-columns:1fr}
+  }
+
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  input[type="file"]{display:none}
+</style>
+</head>
+<body>
+
+<div class="glow-orb a"></div>
+<div class="glow-orb b"></div>
+
+<div class="app">
+
+  <header class="header">
+    <div class="header-badge">▶ VideoFuse Pro</div>
+    <h1>Видео для рекламы</h1>
+    <p>Массовая уникализация · Склейка · Фоновая обработка</p>
+  </header>
+
+  <div id="statusBar">
+    <span id="statusPill" class="status-pill checking">
+      <span class="status-dot"></span>
+      <span id="statusText">Проверка...</span>
+    </span>
+  </div>
+
+  <!-- Main tabs -->
+  <div class="main-tabs">
+    <button class="main-tab active" onclick="switchTab('process')">⚡ Обработка</button>
+    <button class="main-tab" onclick="switchTab('queue')">📋 Очередь <span id="queueBadge" class="count-badge" style="display:none">0</span></button>
+    <button class="main-tab" onclick="switchTab('files')">📁 Файлы <span id="filesBadge" class="count-badge" style="display:none">0</span></button>
+  </div>
+
+  <!-- ═══ TAB: PROCESS ═══ -->
+  <div class="tab-content active" id="tab-process">
+
+    <div class="mode-row">
+      <button class="mode-btn active" data-mode="solo" onclick="setMode('solo')">🔒 Уникализация</button>
+      <button class="mode-btn" data-mode="merge" onclick="setMode('merge')">🎬 Склейка + концовка</button>
+    </div>
+
+    <div class="settings">
+      <div class="s-card">
+        <label>Формат</label>
+        <select id="selFormat">
+          <option value="original" selected>Оригинал</option>
+          <option value="9:16">9:16 Верт.</option>
+          <option value="1:1">1:1 Квадрат</option>
+          <option value="4:5">4:5 Insta</option>
+          <option value="16:9">16:9 Гориз.</option>
+        </select>
+      </div>
+      <div class="s-card">
+        <label>Качество</label>
+        <select id="selQuality">
+          <option value="high" selected>Высокое</option>
+          <option value="medium">Среднее</option>
+          <option value="low">Быстрое</option>
+        </select>
+      </div>
+      <div class="s-card">
+        <label>FB Уникализация</label>
+        <div class="toggle-row" onclick="this.querySelector('input').click()">
+          <input type="checkbox" id="chkUnique" checked>
+          <span class="toggle-track"></span>
+          <span style="font-size:12px">Вкл</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drop zone for creatives -->
+    <div class="drop-area" id="dropArea" onclick="document.getElementById('inpFiles').click()">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title" id="dropTitle">Перетащите видео сюда</div>
+      <div class="drop-sub">Можно добавить сразу несколько файлов · mp4, mov, webm</div>
+      <input type="file" id="inpFiles" accept="video/*" multiple>
+    </div>
+
+    <div class="file-list" id="fileList"></div>
+
+    <!-- Endcard (for merge mode) -->
+    <div class="endcard-zone" id="endcardZone">
+      <div class="endcard-box">
+        <div class="ez-label">📲 Концовка (одна для всех)</div>
+        <div class="drop-area" style="padding:18px;margin:0;border-style:dashed" onclick="document.getElementById('inpEndcard').click()">
+          <div id="endcardPreview">
+            <div class="drop-sub">Видео или картинка</div>
+          </div>
+          <input type="file" id="inpEndcard" accept="video/*,image/*">
+        </div>
+        <div class="ec-settings" id="ecSettings">
+          <div class="s-card" style="background:var(--surface2)">
+            <label>Длительность (сек)</label>
+            <input type="number" id="imgDuration" value="5" min="1" max="30" step="0.5">
+          </div>
+          <div class="s-card" style="background:var(--surface2)">
+            <label>Анимация</label>
+            <select id="imgAnimation">
+              <option value="zoom">Zoom In</option>
+              <option value="pulse">Пульсация</option>
+              <option value="fade">Fade</option>
+              <option value="slide">Slide</option>
+              <option value="none">Нет</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-row">
+      <button class="btn-submit" id="btnSubmit" disabled onclick="submitJobs()">⚡ Отправить в обработку</button>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: QUEUE ═══ -->
+  <div class="tab-content" id="tab-queue">
+    <div class="queue-header">
+      <h3>Очередь обработки</h3>
+      <div class="queue-stats" id="queueStats"></div>
+    </div>
+    <div id="queueList"></div>
+  </div>
+
+  <!-- ═══ TAB: FILES ═══ -->
+  <div class="tab-content" id="tab-files">
+    <div class="files-toolbar">
+      <h3>Готовые файлы</h3>
+      <div class="files-toolbar-btns">
+        <button class="btn-tool" onclick="loadFiles()">🔄 Обновить</button>
+        <button class="btn-tool" onclick="downloadAllFiles()">📦 Скачать все ZIP</button>
+        <button class="btn-tool danger" onclick="deleteAllFiles()">🗑 Удалить все</button>
+      </div>
+    </div>
+    <div id="fileGrid" class="file-grid"></div>
+  </div>
+
+</div>
+
+<script>
+const API = 'api.php';
+let serverOk = false;
+let currentMode = 'solo';
+let creativeFiles = [];
+let endcardFile = null;
+let endcardIsImage = false;
+let activeJobIds = [];
+let pollInterval = null;
+
+// ─── Tabs ───
+function switchTab(tab) {
+  document.querySelectorAll('.main-tab').forEach((t,i) => t.classList.toggle('active', ['process','queue','files'][i]===tab));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  if (tab==='queue') pollJobs();
+  if (tab==='files') loadFiles();
+}
+
+// ─── Mode ───
+function setMode(m) {
+  currentMode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  document.getElementById('endcardZone').classList.toggle('visible', m==='merge');
+  updateSubmitBtn();
+}
+
+// ─── Server check ───
+async function checkServer() {
+  const pill=document.getElementById('statusPill'), text=document.getElementById('statusText');
+  try {
+    const r=await fetch(API+'?action=check'), d=await r.json();
+    if(d.ok){pill.className='status-pill ok';text.textContent='Готов · '+d.ffmpeg_version?.split(' ').slice(0,3).join(' ');serverOk=true;}
+    else throw new Error('FFmpeg не найден');
+  } catch(e){pill.className='status-pill fail';text.textContent='Ошибка: '+e.message;}
+  updateSubmitBtn();
+}
+
+// ─── File selection ───
+const dropArea = document.getElementById('dropArea');
+['dragenter','dragover'].forEach(e => dropArea.addEventListener(e, ev=>{ev.preventDefault();dropArea.classList.add('dragover')}));
+['dragleave','drop'].forEach(e => dropArea.addEventListener(e, ev=>{ev.preventDefault();dropArea.classList.remove('dragover')}));
+dropArea.addEventListener('drop', ev => { addFiles(ev.dataTransfer.files); });
+document.getElementById('inpFiles').addEventListener('change', function(){ addFiles(this.files); this.value=''; });
+
+function addFiles(fileList) {
+  for (const f of fileList) {
+    if (!creativeFiles.find(x => x.name===f.name && x.size===f.size)) {
+      creativeFiles.push(f);
+    }
+  }
+  renderFileList();
+  updateSubmitBtn();
+}
+
+function removeFile(idx) {
+  creativeFiles.splice(idx, 1);
+  renderFileList();
+  updateSubmitBtn();
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (!creativeFiles.length) { el.innerHTML=''; document.getElementById('dropTitle').textContent='Перетащите видео сюда'; return; }
+  document.getElementById('dropTitle').textContent = 'Добавить ещё файлы (' + creativeFiles.length + ' добавлено)';
+  el.innerHTML = creativeFiles.map((f,i) =>
+    '<div class="file-item">'+
+      '<span class="fi-icon">🎬</span>'+
+      '<span class="fi-name">'+f.name+'</span>'+
+      '<span class="fi-size">'+(f.size/1024/1024).toFixed(1)+' MB</span>'+
+      '<button class="fi-remove" onclick="removeFile('+i+')">✕</button>'+
+    '</div>'
+  ).join('');
+}
+
+// ─── Endcard ───
+document.getElementById('inpEndcard').addEventListener('change', function(){
+  endcardFile = this.files[0] || null;
+  if (!endcardFile) return;
+  endcardIsImage = endcardFile.type.startsWith('image/');
+  document.getElementById('endcardPreview').innerHTML =
+    '<div style="font-size:13px;font-weight:600;color:var(--green)">'+endcardFile.name+'</div>'+
+    '<div style="font-size:11px;color:var(--text3)">'+(endcardFile.size/1024/1024).toFixed(1)+' MB'+(endcardIsImage?' · картинка':'')+'</div>';
+  document.getElementById('ecSettings').classList.toggle('visible', endcardIsImage);
+  updateSubmitBtn();
+});
+
+function updateSubmitBtn() {
+  const ok = serverOk && creativeFiles.length > 0 && (currentMode==='solo' || endcardFile);
+  document.getElementById('btnSubmit').disabled = !ok;
+}
+
+// ─── Submit ───
+async function submitJobs() {
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  btn.textContent = '⏳ Загрузка...';
+
+  try {
+    const fd = new FormData();
+    fd.append('action', 'submit');
+    fd.append('mode', currentMode);
+    fd.append('format', document.getElementById('selFormat').value);
+    fd.append('quality', document.getElementById('selQuality').value);
+    fd.append('uniqualize', document.getElementById('chkUnique').checked ? '1' : '');
+    fd.append('endcard_duration', document.getElementById('imgDuration').value);
+    fd.append('endcard_animation', document.getElementById('imgAnimation').value);
+
+    creativeFiles.forEach(f => fd.append('files[]', f));
+    if (currentMode === 'merge' && endcardFile) {
+      fd.append('file2', endcardFile);
+    }
+
+    const r = await fetch(API, {method:'POST', body:fd});
+    const d = await r.json();
+
+    if (d.error) throw new Error(d.error);
+
+    // Track jobs
+    activeJobIds = d.jobs.map(j => j.id);
+
+    // Clear files
+    creativeFiles = [];
+    renderFileList();
+    updateSubmitBtn();
+
+    // Switch to queue
+    switchTab('queue');
+    startPolling();
+
+  } catch(e) {
+    alert('Ошибка: ' + e.message);
+  } finally {
+    btn.textContent = '⚡ Отправить в обработку';
+    updateSubmitBtn();
+  }
+}
+
+// ─── Job polling ───
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollJobs();
+  pollInterval = setInterval(pollJobs, 2000);
+}
+
+async function pollJobs() {
+  try {
+    const r = await fetch(API + '?action=status');
+    const d = await r.json();
+    if (!d.ok) return;
+
+    const jobs = d.jobs;
+    renderQueue(jobs);
+
+    // Update badges
+    const active = jobs.filter(j => j.status==='queued'||j.status==='processing').length;
+    const done = jobs.filter(j => j.status==='done').length;
+    const badge = document.getElementById('queueBadge');
+    if (active > 0) { badge.style.display='inline'; badge.textContent=active; }
+    else { badge.style.display='none'; }
+
+    // Stop polling if nothing active
+    if (active === 0 && pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+      // Refresh files tab badge
+      loadFileCount();
+    }
+  } catch(e) {}
+}
+
+function renderQueue(jobs) {
+  const el = document.getElementById('queueList');
+  const stats = document.getElementById('queueStats');
+
+  if (!jobs.length) {
+    el.innerHTML = '<div class="queue-empty">Нет задач. Загрузите видео на вкладке «Обработка»</div>';
+    stats.textContent = '';
+    return;
+  }
+
+  const counts = {queued:0, processing:0, done:0, error:0};
+  jobs.forEach(j => counts[j.status]++);
+  stats.textContent = [
+    counts.processing && '⏳ '+counts.processing,
+    counts.queued && '🕐 '+counts.queued,
+    counts.done && '✅ '+counts.done,
+    counts.error && '❌ '+counts.error,
+  ].filter(Boolean).join(' · ');
+
+  el.innerHTML = jobs.map(j => {
+    const icon = {queued:'🕐', processing:'⏳', done:'✅', error:'❌'}[j.status];
+    const meta = j.status==='done'
+      ? (j.resolution||'')+' · '+(j.output_size_mb||'?')+' MB · '+(j.output_duration||'?')+'s · '+(j.elapsed||'?')+'s'
+      : j.status==='processing' ? 'Обработка...'
+      : j.status==='error' ? ''
+      : 'В очереди';
+
+    let actions = '';
+    if (j.status==='done' && j.output_file) {
+      actions = '<button class="btn-sm dl" onclick="dlFile(\''+j.output_file+'\')">↓ Скачать</button>';
+    }
+
+    return '<div class="job-card '+j.status+'">'+
+      '<div class="job-status-icon">'+icon+'</div>'+
+      '<div class="job-info">'+
+        '<div class="job-name">'+j.original_name+'</div>'+
+        '<div class="job-meta">'+meta+'</div>'+
+        (j.error ? '<div class="job-error">'+j.error.substring(0,100)+'</div>' : '')+
+      '</div>'+
+      '<div class="job-actions">'+actions+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ─── Files tab ───
+async function loadFiles() {
+  try {
+    const r = await fetch(API+'?action=files');
+    const d = await r.json();
+    if (!d.ok) return;
+
+    const badge = document.getElementById('filesBadge');
+    if (d.count > 0) { badge.style.display='inline'; badge.textContent=d.count; }
+    else { badge.style.display='none'; }
+
+    const el = document.getElementById('fileGrid');
+    if (!d.files.length) {
+      el.innerHTML = '<div class="files-empty" style="grid-column:1/-1">Нет готовых файлов</div>';
+      return;
+    }
+
+    el.innerHTML = d.files.map(f => {
+      const date = new Date(f.created*1000).toLocaleString('ru');
+      return '<div class="fcard">'+
+        '<div class="fcard-name">'+f.name+'</div>'+
+        '<div class="fcard-meta">'+f.size_mb+' MB · '+date+'</div>'+
+        '<div class="fcard-actions">'+
+          '<button class="btn-sm dl" onclick="dlFile(\''+f.name+'\')">↓ Скачать</button>'+
+          '<button class="btn-sm del" onclick="delFile(\''+f.name+'\')">✕</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function loadFileCount() {
+  try {
+    const r = await fetch(API+'?action=files');
+    const d = await r.json();
+    const badge = document.getElementById('filesBadge');
+    if (d.count > 0) { badge.style.display='inline'; badge.textContent=d.count; }
+    else { badge.style.display='none'; }
+  } catch(e) {}
+}
+
+function dlFile(name) {
+  const a = document.createElement('a');
+  a.href = 'tmp_outputs/' + name;
+  a.download = name;
+  a.click();
+}
+
+async function delFile(name) {
+  if (!confirm('Удалить '+name+'?')) return;
+  const fd = new FormData();
+  fd.append('action','delete');
+  fd.append('files', JSON.stringify([name]));
+  await fetch(API, {method:'POST',body:fd});
+  loadFiles();
+}
+
+async function deleteAllFiles() {
+  if (!confirm('Удалить ВСЕ готовые файлы?')) return;
+  try {
+    const r = await fetch(API+'?action=files');
+    const d = await r.json();
+    const names = d.files.map(f=>f.name);
+    const fd = new FormData();
+    fd.append('action','delete');
+    fd.append('files', JSON.stringify(names));
+    await fetch(API, {method:'POST',body:fd});
+    loadFiles();
+  } catch(e) {}
+}
+
+function downloadAllFiles() {
+  window.location.href = API + '?action=download_all';
+}
+
+// ─── Init ───
+checkServer();
+loadFileCount();
+// Auto-poll if there are active jobs
+setTimeout(async () => {
+  try {
+    const r = await fetch(API+'?action=status');
+    const d = await r.json();
+    if (d.ok && d.jobs.some(j => j.status==='queued'||j.status==='processing')) startPolling();
+  } catch(e){}
+}, 1000);
+</script>
+</body>
+</html>
