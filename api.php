@@ -484,14 +484,17 @@ function formatJobForClient($j) {
 // ═══════════════════════════════════════════════════════════════
 function handleFiles() {
     $files = [];
-    foreach (glob(OUTPUT_DIR . '*.mp4') as $f) {
-        $files[] = [
-            'name' => basename($f),
-            'size' => filesize($f),
-            'size_mb' => round(filesize($f)/1024/1024, 1),
-            'created' => filemtime($f),
-            'url' => 'tmp_outputs/' . basename($f),
-        ];
+    $patterns = ['*.mp4', '*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif'];
+    foreach ($patterns as $pat) {
+        foreach (glob(OUTPUT_DIR . $pat) as $f) {
+            $files[] = [
+                'name' => basename($f),
+                'size' => filesize($f),
+                'size_mb' => round(filesize($f)/1024/1024, 1),
+                'created' => filemtime($f),
+                'url' => 'tmp_outputs/' . basename($f),
+            ];
+        }
     }
     usort($files, fn($a,$b) => $b['created'] - $a['created']);
     jsonOut(['ok' => true, 'files' => $files, 'count' => count($files)]);
@@ -501,7 +504,8 @@ function handleDownload() {
     $name = basename($_GET['file'] ?? '');
     $path = OUTPUT_DIR . $name;
     if (!$name || !file_exists($path)) { jsonOut(['error' => 'File not found'], 404); return; }
-    header('Content-Type: video/mp4');
+    $mime = mime_content_type($path) ?: 'application/octet-stream';
+    header('Content-Type: ' . $mime);
     header('Content-Disposition: attachment; filename="' . $name . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path);
@@ -521,7 +525,10 @@ function handleDelete() {
 }
 
 function handleDownloadAll() {
-    $files = glob(OUTPUT_DIR . '*.mp4');
+    $files = [];
+    foreach (['*.mp4','*.jpg','*.jpeg','*.png','*.webp','*.gif'] as $pat) {
+        $files = array_merge($files, glob(OUTPUT_DIR . $pat) ?: []);
+    }
     if (empty($files)) { jsonOut(['error' => 'Нет файлов'], 404); return; }
 
     $zipPath = OUTPUT_DIR . 'videofuse_all_' . date('Y-m-d_His') . '.zip';
