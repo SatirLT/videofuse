@@ -183,7 +183,7 @@
   .job-sel-cb{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
 
   /* Floating selection bar */
-  .sel-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--accent);border-radius:50px;padding:10px 20px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:100;white-space:nowrap;animation:rise .25s ease-out}
+  .sel-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--accent);border-radius:50px;padding:10px 20px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:100;white-space:nowrap;animation:rise-center .25s ease-out}
   .sel-bar.visible{display:flex}
   .sel-bar-text{font-size:13px;font-weight:600;color:var(--text)}
   .sel-bar-dl{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;padding:7px 18px;border:none;border-radius:50px;cursor:pointer;background:var(--accent);color:#fff;transition:opacity .2s}
@@ -191,7 +191,8 @@
   .sel-bar-clr{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:7px 14px;border:1px solid var(--border);border-radius:50px;cursor:pointer;background:transparent;color:var(--text2);transition:all .2s}
   .sel-bar-clr:hover{border-color:var(--red);color:var(--red)}
 
-  @keyframes rise{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes rise-center{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
   ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
   input[type="file"]{display:none}
