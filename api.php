@@ -11,6 +11,7 @@ define('OUTPUT_DIR',  __DIR__ . '/tmp_outputs/');
 define('JOBS_DIR',    __DIR__ . '/tmp_jobs/');
 define('FFMPEG_BIN',  'ffmpeg');
 define('FFPROBE_BIN', 'ffprobe');
+define('MAX_WORKERS', 2); // max parallel ffmpeg processes
 
 foreach ([UPLOAD_DIR, OUTPUT_DIR, JOBS_DIR] as $d) {
     if (!is_dir($d)) @mkdir($d, 0775, true);
@@ -368,12 +369,27 @@ function workerRun($jobId) {
     if (file_exists($job['creative_path'])) @unlink($job['creative_path']);
 
     file_put_contents($jobFile, json_encode($job, JSON_UNESCAPED_UNICODE));
+
+    // Pipeline: launch next queued job now that a slot is free
+    launchNextQueued();
 }
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER LAUNCHER
 // ═══════════════════════════════════════════════════════════════
+function countProcessingJobs() {
+    $count = 0;
+    foreach (glob(JOBS_DIR . 'job_*.json') ?: [] as $f) {
+        $j = json_decode(file_get_contents($f), true);
+        if ($j && $j['status'] === 'processing') $count++;
+    }
+    return $count;
+}
+
 function launchWorker($jobId) {
+    // Enforce parallel worker limit
+    if (countProcessingJobs() >= MAX_WORKERS) return;
+
     // PHP_BINARY in FPM/web context points to the FPM binary, not CLI.
     // Find the actual CLI binary instead.
     if (php_sapi_name() === 'cli') {
@@ -391,6 +407,18 @@ function launchWorker($jobId) {
     } else {
         @exec("{$phpBin} {$script} worker {$jid} > /dev/null 2>&1 &");
     }
+}
+
+// Launch next queued job (called at end of each worker run)
+function launchNextQueued() {
+    $queued = [];
+    foreach (glob(JOBS_DIR . 'job_*.json') ?: [] as $f) {
+        $j = json_decode(file_get_contents($f), true);
+        if ($j && $j['status'] === 'queued') $queued[] = $j;
+    }
+    if (empty($queued)) return;
+    usort($queued, fn($a, $b) => $a['created_at'] - $b['created_at']);
+    launchWorker($queued[0]['id']);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -436,8 +464,8 @@ function handleStatus() {
 function watchdogJob($job, $jobFile) {
     $now = time();
 
-    // Job stuck in 'queued' for >20s → worker never started, re-launch
-    if ($job['status'] === 'queued' && ($now - $job['created_at']) > 20) {
+    // Job stuck in 'queued' for >5s and slot available → re-launch
+    if ($job['status'] === 'queued' && ($now - $job['created_at']) > 5) {
         launchWorker($job['id']);
     }
 
