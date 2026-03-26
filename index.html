@@ -301,7 +301,10 @@
   <div class="tab-content" id="tab-queue">
     <div class="queue-header">
       <h3>Очередь обработки</h3>
-      <div class="queue-stats" id="queueStats"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="queue-stats" id="queueStats"></div>
+        <button class="btn-tool" style="font-size:11px;padding:5px 12px" onclick="clearCompleted()">🗑 Очистить журнал</button>
+      </div>
     </div>
     <div id="queueList"></div>
   </div>
@@ -535,6 +538,9 @@ function renderQueue(jobs) {
     if (j.status==='done' && j.output_file) {
       actions = '<button class="btn-sm dl" onclick="dlFile(\''+j.output_file+'\')">↓ Скачать</button>';
     }
+    if (j.status==='queued' || j.status==='processing') {
+      actions += '<button class="btn-sm del" onclick="cancelJob(\''+j.id+'\')">✕ Отмена</button>';
+    }
 
     return '<div class="job-card '+j.status+'">'+
       '<div class="job-status-icon">'+icon+'</div>'+
@@ -646,6 +652,22 @@ async function loadServerStats() {
 
     document.getElementById('srvJobs').textContent = d.active_jobs > 0 ? d.active_jobs + ' активно' : 'нет';
   } catch(e) {}
+}
+
+// ─── Queue actions ───
+async function cancelJob(id) {
+  const fd = new FormData();
+  fd.append('action', 'cancel_job');
+  fd.append('id', id);
+  await fetch(API, {method:'POST', body:fd});
+  pollJobs();
+}
+
+async function clearCompleted() {
+  const fd = new FormData();
+  fd.append('action', 'clear_completed');
+  await fetch(API, {method:'POST', body:fd});
+  pollJobs();
 }
 
 // ─── Init ───

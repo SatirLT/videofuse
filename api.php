@@ -42,9 +42,11 @@ switch ($action) {
     case 'delete':      handleDelete(); break;       // Delete file(s)
     case 'download_all':handleDownloadAll(); break;  // Download all as ZIP
     case 'cleanup':     handleCleanup(); break;
-    case 'clear_queue': handleClearQueue(); break;
-    case 'server_stats':handleServerStats(); break;
-    default:            jsonOut(['error' => 'Unknown action'], 400);
+    case 'clear_queue':     handleClearQueue(); break;
+    case 'cancel_job':      handleCancelJob(); break;
+    case 'clear_completed': handleClearCompleted(); break;
+    case 'server_stats':    handleServerStats(); break;
+    default:                jsonOut(['error' => 'Unknown action'], 400);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -657,10 +659,36 @@ function handleClearQueue() {
     foreach (glob(JOBS_DIR . 'job_*.json') as $f) {
         $j = json_decode(file_get_contents($f), true);
         if ($j && in_array($j['status'], ['queued', 'processing'])) {
-            // Clean up uploaded source file if it exists
             if (!empty($j['creative_path']) && file_exists($j['creative_path'])) {
                 @unlink($j['creative_path']);
             }
+            @unlink($f);
+            $cleared++;
+        }
+    }
+    jsonOut(['ok' => true, 'cleared' => $cleared]);
+}
+
+function handleCancelJob() {
+    $id = preg_replace('/[^a-zA-Z0-9._]/', '', $_POST['id'] ?? '');
+    $f = JOBS_DIR . $id . '.json';
+    if (!$id || !file_exists($f)) { jsonOut(['error' => 'Job not found'], 404); return; }
+    $j = json_decode(file_get_contents($f), true);
+    if (!$j || !in_array($j['status'], ['queued', 'processing'])) {
+        jsonOut(['error' => 'Cannot cancel job in status: ' . ($j['status'] ?? '?')], 400); return;
+    }
+    if (!empty($j['creative_path']) && file_exists($j['creative_path'])) {
+        @unlink($j['creative_path']);
+    }
+    @unlink($f);
+    jsonOut(['ok' => true]);
+}
+
+function handleClearCompleted() {
+    $cleared = 0;
+    foreach (glob(JOBS_DIR . 'job_*.json') as $f) {
+        $j = json_decode(file_get_contents($f), true);
+        if ($j && in_array($j['status'], ['done', 'error'])) {
             @unlink($f);
             $cleared++;
         }
