@@ -555,6 +555,38 @@ function handleDelete() {
     jsonOut(['ok' => true, 'deleted' => $deleted]);
 }
 
+function createZipAndSend($files, $zipName) {
+    if (empty($files)) { jsonOut(['error' => 'Нет файлов'], 404); return; }
+
+    set_time_limit(300);
+    $zipPath = OUTPUT_DIR . $zipName . '_' . date('Y-m-d_His') . '.zip';
+
+    // Try shell zip first (faster, no memory limit issues)
+    $useShell = (bool)shell_exec('which zip 2>/dev/null');
+    if ($useShell) {
+        $args = implode(' ', array_map('escapeshellarg', $files));
+        shell_exec('zip -j ' . escapeshellarg($zipPath) . ' ' . $args . ' 2>&1');
+    }
+
+    // Fallback: PHP ZipArchive
+    if (!file_exists($zipPath) || filesize($zipPath) < 22) {
+        if (!class_exists('ZipArchive')) { jsonOut(['error' => 'ZIP недоступен (нет расширения zip)'], 500); return; }
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) { jsonOut(['error' => 'Не удалось создать ZIP'], 500); return; }
+        foreach ($files as $f) { if (file_exists($f)) $zip->addFile($f, basename($f)); }
+        $zip->close();
+    }
+
+    if (!file_exists($zipPath) || filesize($zipPath) < 22) { jsonOut(['error' => 'ZIP пустой или не создан'], 500); return; }
+
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $zipName . '.zip"');
+    header('Content-Length: ' . filesize($zipPath));
+    readfile($zipPath);
+    @unlink($zipPath);
+    exit;
+}
+
 function handleDownloadSelected() {
     $names = $_POST['files'] ?? [];
     if (is_string($names)) $names = json_decode($names, true) ?: [];
@@ -573,25 +605,8 @@ function handleDownloadSelected() {
         exit;
     }
 
-    // Multiple files — ZIP
-    $zipPath = OUTPUT_DIR . 'videofuse_selected_' . date('Y-m-d_His') . '.zip';
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-        jsonOut(['error' => 'Cannot create ZIP'], 500); return;
-    }
-    foreach ($names as $name) {
-        $name = basename($name);
-        $path = OUTPUT_DIR . $name;
-        if (file_exists($path)) $zip->addFile($path, $name);
-    }
-    $zip->close();
-
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
-    header('Content-Length: ' . filesize($zipPath));
-    readfile($zipPath);
-    @unlink($zipPath);
-    exit;
+    $paths = array_filter(array_map(fn($n) => OUTPUT_DIR . basename($n), $names), 'file_exists');
+    createZipAndSend(array_values($paths), 'videofuse_selected');
 }
 
 function handleDownloadAll() {
@@ -599,24 +614,7 @@ function handleDownloadAll() {
     foreach (['*.mp4','*.jpg','*.jpeg','*.png','*.webp','*.gif'] as $pat) {
         $files = array_merge($files, glob(OUTPUT_DIR . $pat) ?: []);
     }
-    if (empty($files)) { jsonOut(['error' => 'Нет файлов'], 404); return; }
-
-    $zipPath = OUTPUT_DIR . 'videofuse_all_' . date('Y-m-d_His') . '.zip';
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-        jsonOut(['error' => 'Cannot create ZIP'], 500); return;
-    }
-    foreach ($files as $f) {
-        $zip->addFile($f, basename($f));
-    }
-    $zip->close();
-
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
-    header('Content-Length: ' . filesize($zipPath));
-    readfile($zipPath);
-    @unlink($zipPath);
-    exit;
+    createZipAndSend($files, 'videofuse_all');
 }
 
 // ═══════════════════════════════════════════════════════════════
