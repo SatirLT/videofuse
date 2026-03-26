@@ -318,8 +318,9 @@
   <div class="tab-content" id="tab-queue">
     <div class="queue-header">
       <h3>Очередь обработки</h3>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="queue-stats" id="queueStats"></div>
+        <button class="btn-tool" style="font-size:11px;padding:5px 12px" onclick="selectAllJobs()">☑ Выбрать все</button>
         <button class="btn-tool" style="font-size:11px;padding:5px 12px" onclick="clearCompleted()">🗑 Очистить журнал</button>
       </div>
     </div>
@@ -331,6 +332,7 @@
     <div class="files-toolbar">
       <h3>Готовые файлы</h3>
       <div class="files-toolbar-btns">
+        <button class="btn-tool" onclick="selectAllFiles()">☑ Выбрать все</button>
         <button class="btn-tool" onclick="loadFiles()">🔄 Обновить</button>
         <button class="btn-tool" onclick="downloadAllFiles()">📦 Скачать все ZIP</button>
         <button class="btn-tool danger" onclick="deleteAllFiles()">🗑 Удалить все</button>
@@ -358,24 +360,63 @@ let endcardIsImage = false;
 let activeJobIds = [];
 let pollInterval = null;
 const selectedFiles = new Set();
+let currentFileNames = [];    // ordered list for shift-select in Files tab
+let currentDoneJobFiles = []; // ordered list for shift-select in Queue tab
+let lastFileIdx = -1;
+let lastJobIdx = -1;
 
-function toggleSelect(name, el) {
-  if (selectedFiles.has(name)) { selectedFiles.delete(name); el.closest('.fcard,.job-card').classList.remove('selected'); }
-  else { selectedFiles.add(name); el.closest('.fcard,.job-card').classList.add('selected'); }
+function setSelected(name, on) {
+  if (on) selectedFiles.add(name); else selectedFiles.delete(name);
+  // sync checkbox + card class in DOM
+  document.querySelectorAll('[data-selname]').forEach(el => {
+    if (el.dataset.selname !== name) return;
+    const card = el.closest('.fcard,.job-card');
+    if (el.tagName === 'INPUT') el.checked = on;
+    card && card.classList.toggle('selected', on);
+  });
+}
+
+function toggleSelect(name, el, idx, listType, event) {
+  const shift = event && event.shiftKey;
+  const ctrl  = event && (event.ctrlKey || event.metaKey);
+  const list  = listType === 'files' ? currentFileNames : currentDoneJobFiles;
+  const lastIdx = listType === 'files' ? lastFileIdx : lastJobIdx;
+
+  if (shift && lastIdx >= 0 && list.length) {
+    // Shift: select range
+    const from = Math.min(lastIdx, idx), to = Math.max(lastIdx, idx);
+    for (let i = from; i <= to; i++) { if (list[i]) setSelected(list[i], true); }
+  } else {
+    // Ctrl or plain click: toggle
+    setSelected(name, !selectedFiles.has(name));
+  }
+
+  if (listType === 'files') lastFileIdx = idx; else lastJobIdx = idx;
   updateSelBar();
 }
 
 function updateSelBar() {
-  const bar = document.getElementById('selBar');
   const n = selectedFiles.size;
+  const bar = document.getElementById('selBar');
   if (n > 0) { bar.classList.add('visible'); document.getElementById('selBarText').textContent = 'Выбрано: ' + n; }
   else { bar.classList.remove('visible'); }
 }
 
 function clearSelection() {
+  [...selectedFiles].forEach(n => setSelected(n, false));
   selectedFiles.clear();
-  document.querySelectorAll('.fcard.selected,.job-card.selected').forEach(el => el.classList.remove('selected'));
-  document.querySelectorAll('.sel-cb,.job-sel-cb').forEach(cb => cb.checked = false);
+  updateSelBar();
+}
+
+function selectAllFiles() {
+  const allOn = currentFileNames.every(n => selectedFiles.has(n));
+  currentFileNames.forEach(n => setSelected(n, !allOn));
+  updateSelBar();
+}
+
+function selectAllJobs() {
+  const allOn = currentDoneJobFiles.every(n => selectedFiles.has(n));
+  currentDoneJobFiles.forEach(n => setSelected(n, !allOn));
   updateSelBar();
 }
 
@@ -564,6 +605,7 @@ async function pollJobs() {
 function renderQueue(jobs) {
   const el = document.getElementById('queueList');
   const stats = document.getElementById('queueStats');
+  currentDoneJobFiles = jobs.filter(j => j.status==='done' && j.output_file).map(j => j.output_file);
 
   if (!jobs.length) {
     el.innerHTML = '<div class="queue-empty">Нет задач. Загрузите видео на вкладке «Обработка»</div>';
@@ -603,8 +645,9 @@ function renderQueue(jobs) {
       actions += '<button class="btn-sm del" onclick="cancelJob(\''+j.id+'\')">✕ Отмена</button>';
     }
 
+    const jIdx = currentDoneJobFiles.indexOf(j.output_file || '');
     const cbHtml = canSelect
-      ? '<input type="checkbox" class="job-sel-cb" '+checked+' onclick="toggleSelect(\''+j.output_file+'\',this)" title="Выбрать">'
+      ? '<input type="checkbox" class="job-sel-cb" data-selname="'+j.output_file+'" '+checked+' onclick="toggleSelect(\''+j.output_file+'\',this,'+jIdx+',\'queue\',event)" title="Выбрать · Shift для диапазона">'
       : '<div style="width:18px;flex-shrink:0"></div>';
 
     return '<div class="job-card '+j.status+selCls+'">'+
@@ -637,12 +680,13 @@ async function loadFiles() {
       return;
     }
 
-    el.innerHTML = d.files.map(f => {
+    currentFileNames = d.files.map(f => f.name);
+    el.innerHTML = d.files.map((f, i) => {
       const date = new Date(f.created*1000).toLocaleString('ru');
       const checked = selectedFiles.has(f.name) ? 'checked' : '';
       const selCls = selectedFiles.has(f.name) ? ' selected' : '';
       return '<div class="fcard'+selCls+'">'+
-        '<input type="checkbox" class="sel-cb" '+checked+' onclick="toggleSelect(\''+f.name+'\',this)" title="Выбрать">'+
+        '<input type="checkbox" class="sel-cb" data-selname="'+f.name+'" '+checked+' onclick="toggleSelect(\''+f.name+'\',this,'+i+',\'files\',event)" title="Выбрать · Shift для диапазона">'+
         '<div class="fcard-name">'+f.name+'</div>'+
         '<div class="fcard-meta">'+f.size_mb+' MB · '+date+'</div>'+
         '<div class="fcard-actions">'+
