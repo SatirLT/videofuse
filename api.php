@@ -42,11 +42,12 @@ switch ($action) {
     case 'delete':      handleDelete(); break;       // Delete file(s)
     case 'download_all':handleDownloadAll(); break;  // Download all as ZIP
     case 'cleanup':     handleCleanup(); break;
-    case 'clear_queue':     handleClearQueue(); break;
-    case 'cancel_job':      handleCancelJob(); break;
-    case 'clear_completed': handleClearCompleted(); break;
-    case 'server_stats':    handleServerStats(); break;
-    default:                jsonOut(['error' => 'Unknown action'], 400);
+    case 'clear_queue':      handleClearQueue(); break;
+    case 'cancel_job':       handleCancelJob(); break;
+    case 'clear_completed':  handleClearCompleted(); break;
+    case 'download_selected':handleDownloadSelected(); break;
+    case 'server_stats':     handleServerStats(); break;
+    default:                 jsonOut(['error' => 'Unknown action'], 400);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -524,6 +525,45 @@ function handleDelete() {
         if (file_exists($path)) { @unlink($path); $deleted++; }
     }
     jsonOut(['ok' => true, 'deleted' => $deleted]);
+}
+
+function handleDownloadSelected() {
+    $names = $_POST['files'] ?? [];
+    if (is_string($names)) $names = json_decode($names, true) ?: [];
+    if (empty($names)) { jsonOut(['error' => 'Нет файлов'], 400); return; }
+
+    // Single file — direct download
+    if (count($names) === 1) {
+        $name = basename($names[0]);
+        $path = OUTPUT_DIR . $name;
+        if (!file_exists($path)) { jsonOut(['error' => 'File not found'], 404); return; }
+        $mime = mime_content_type($path) ?: 'application/octet-stream';
+        header('Content-Type: ' . $mime);
+        header('Content-Disposition: attachment; filename="' . $name . '"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+        exit;
+    }
+
+    // Multiple files — ZIP
+    $zipPath = OUTPUT_DIR . 'videofuse_selected_' . date('Y-m-d_His') . '.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+        jsonOut(['error' => 'Cannot create ZIP'], 500); return;
+    }
+    foreach ($names as $name) {
+        $name = basename($name);
+        $path = OUTPUT_DIR . $name;
+        if (file_exists($path)) $zip->addFile($path, $name);
+    }
+    $zip->close();
+
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . basename($zipPath) . '"');
+    header('Content-Length: ' . filesize($zipPath));
+    readfile($zipPath);
+    @unlink($zipPath);
+    exit;
 }
 
 function handleDownloadAll() {
